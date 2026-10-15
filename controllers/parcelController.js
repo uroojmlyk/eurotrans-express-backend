@@ -60,7 +60,6 @@ const createParcel = async (req, res, next) => {
       });
     }
 
-    // Retry a few times in the unlikely event of a collision
     const MAX_TRIES = 3;
     let lastErr = null;
 
@@ -112,13 +111,11 @@ const createParcel = async (req, res, next) => {
         });
       } catch (err) {
         lastErr = err;
-        // 11000 = duplicate key
         if (err && err.code === 11000) continue;
         throw err;
       }
     }
 
-    // If we reach here, we exhausted retries on duplicate keys
     return next(lastErr || new Error('Failed to generate unique identifiers'));
   } catch (err) {
     return next(err);
@@ -149,7 +146,6 @@ const listParcels = async (req, res, next) => {
     if (req.query.q) {
       const q = String(req.query.q).trim();
       if (q) {
-        // Escape regex metachars to avoid ReDoS
         const safe = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const rx = new RegExp(safe, 'i');
         filter.$or = [
@@ -164,10 +160,7 @@ const listParcels = async (req, res, next) => {
     }
 
     const [items, total] = await Promise.all([
-      Parcel.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit),
+      Parcel.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
       Parcel.countDocuments(filter),
     ]);
 
@@ -249,6 +242,78 @@ const updateStatus = async (req, res, next) => {
   }
 };
 
+// ---------- admin: update parcel details ----------
+// PUT /api/parcels/:id
+const updateParcel = async (req, res, next) => {
+  try {
+    const parcel = await Parcel.findById(req.params.id);
+    if (!parcel) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'Parcel not found' });
+    }
+
+    const b = req.body || {};
+
+    if (b.sender) {
+      const s = pickContact(b.sender);
+      if (s) parcel.sender = s;
+    }
+    if (b.recipient) {
+      const r = pickContact(b.recipient);
+      if (r) parcel.recipient = r;
+    }
+
+    if (typeof b.origin === 'string' && b.origin.trim())
+      parcel.origin = b.origin.trim();
+    if (typeof b.destination === 'string' && b.destination.trim())
+      parcel.destination = b.destination.trim();
+
+    if (typeof b.parcelType === 'string')
+      parcel.parcelType = b.parcelType.trim() || 'Parcel';
+    if (typeof b.serviceType === 'string')
+      parcel.serviceType = b.serviceType.trim() || 'Standard';
+    if (b.weightKg !== undefined)
+      parcel.weightKg = toNumberOrNull(b.weightKg);
+    if (b.pieces !== undefined) {
+      const n = Number(b.pieces);
+      if (Number.isFinite(n) && n >= 1) parcel.pieces = Math.floor(n);
+    }
+    if (typeof b.description === 'string')
+      parcel.description = b.description.trim();
+
+    await parcel.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Parcel updated',
+      parcel,
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+// ---------- admin: delete parcel ----------
+// DELETE /api/parcels/:id
+const deleteParcel = async (req, res, next) => {
+  try {
+    const parcel = await Parcel.findByIdAndDelete(req.params.id);
+    if (!parcel) {
+      return res
+        .status(404)
+        .json({ success: false, message: 'Parcel not found' });
+    }
+    return res.status(200).json({
+      success: true,
+      message: 'Parcel deleted',
+      id: parcel._id,
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
 // ---------- public: track parcel ----------
 // GET /api/track/:code
 const trackParcel = async (req, res, next) => {
@@ -270,7 +335,6 @@ const trackParcel = async (req, res, next) => {
         .json({ success: false, message: 'No shipment found for this code' });
     }
 
-    // Sort history ascending for a clean timeline
     const history = Array.isArray(parcel.history)
       ? [...parcel.history].sort((a, b) => new Date(a.at) - new Date(b.at))
       : [];
@@ -308,5 +372,7 @@ module.exports = {
   listParcels,
   getParcel,
   updateStatus,
+  updateParcel,
+  deleteParcel,
   trackParcel,
 };

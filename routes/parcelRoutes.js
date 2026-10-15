@@ -7,6 +7,8 @@ const {
   listParcels,
   getParcel,
   updateStatus,
+  updateParcel,
+  deleteParcel,
   trackParcel,
 } = require('../controllers/parcelController');
 
@@ -18,6 +20,8 @@ adminRouter.use(protectAdmin);
 adminRouter.post('/', createParcel);
 adminRouter.get('/', listParcels);
 adminRouter.get('/:id', getParcel);
+adminRouter.put('/:id', updateParcel);
+adminRouter.delete('/:id', deleteParcel);
 adminRouter.patch('/:id/status', updateStatus);
 
 // ---------- Public router (mounted at /api/track) ----------
