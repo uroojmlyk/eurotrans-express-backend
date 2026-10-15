@@ -30,6 +30,7 @@ const contactSchema = new mongoose.Schema(
 const historySchema = new mongoose.Schema(
   {
     status: { type: String, enum: STATUSES, required: true },
+    location: { type: String, trim: true, maxlength: 200, default: '' },
     note: { type: String, trim: true, maxlength: 300, default: '' },
     at: { type: Date, default: Date.now },
   },

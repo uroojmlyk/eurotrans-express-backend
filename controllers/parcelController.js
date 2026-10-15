@@ -95,6 +95,7 @@ const createParcel = async (req, res, next) => {
           history: [
             {
               status: 'Registered',
+              location: origin,
               note:
                 typeof b.note === 'string' && b.note.trim()
                   ? b.note.trim()
@@ -203,7 +204,7 @@ const getParcel = async (req, res, next) => {
 // PATCH /api/parcels/:id/status
 const updateStatus = async (req, res, next) => {
   try {
-    const { status, note } = req.body || {};
+    const { status, note, location } = req.body || {};
 
     if (typeof status !== 'string' || !STATUSES.includes(status)) {
       return res.status(400).json({
@@ -230,6 +231,8 @@ const updateStatus = async (req, res, next) => {
     parcel.status = status;
     parcel.history.push({
       status,
+      location:
+        typeof location === 'string' ? location.trim().slice(0, 200) : '',
       note: typeof note === 'string' ? note.trim().slice(0, 300) : '',
       at: new Date(),
     });
